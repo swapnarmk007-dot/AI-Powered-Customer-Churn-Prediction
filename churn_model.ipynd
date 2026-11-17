@@ -1,0 +1,320 @@
+# ============================================================
+# CUSTOMER CHURN PREDICTION - COMPLETE DATA SCIENCE PROJECT
+# Algorithm: Random Forest Classifier
+# ============================================================
+
+# 1. IMPORT LIBRARIES
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import joblib
+import os
+
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    ConfusionMatrixDisplay,
+    roc_curve,
+    roc_auc_score
+)
+
+print("Libraries imported successfully!")
+
+# ============================================================
+# 2. LOAD DATASET
+# ============================================================
+df = pd.read_csv(r"C:\Users\swapn\Downloads\WA_Fn-UseC_-Telco-Customer-Churn.csv")
+
+
+df.columns = df.columns.str.strip()
+
+print("\nDataset Shape:", df.shape)
+print("\nDataset Information:")
+df.info()
+
+print("\nFirst 5 Rows:")
+display(df.head())
+
+# ============================================================
+# 3. DATA CLEANING
+# ============================================================
+
+df['TotalCharges'] = pd.to_numeric(
+    df['TotalCharges'], errors='coerce'
+)
+
+df = df.dropna().copy()
+
+print("\nMissing Values:", df.isnull().sum().sum())
+print("Cleaned Dataset Shape:", df.shape)
+
+# ============================================================
+# 4. EXPLORATORY DATA ANALYSIS (EDA)
+# ============================================================
+
+# Graph 1: Churn Distribution
+
+plt.figure(figsize=(6, 4))
+sns.countplot(data=df, x='Churn')
+plt.title("Customer Churn Distribution")
+plt.xlabel("Churn")
+plt.ylabel("Number of Customers")
+plt.show()
+
+# Graph 2: Gender Distribution
+
+plt.figure(figsize=(6, 4))
+sns.countplot(data=df, x='gender')
+plt.title("Customer Gender Distribution")
+plt.show()
+
+# Graph 3: Monthly Charges vs Churn
+
+plt.figure(figsize=(7, 4))
+sns.boxplot(data=df, x='Churn', y='MonthlyCharges')
+plt.title("Monthly Charges vs Churn")
+plt.show()
+
+# Graph 4: Contract Type vs Churn
+
+plt.figure(figsize=(8, 4))
+sns.countplot(data=df, x='Contract', hue='Churn')
+plt.title("Contract Type vs Customer Churn")
+plt.xticks(rotation=15)
+plt.tight_layout()
+plt.show()
+
+# Graph 5: Tenure vs Churn
+
+plt.figure(figsize=(7, 4))
+sns.boxplot(data=df, x='Churn', y='tenure')
+plt.title("Customer Tenure vs Churn")
+plt.show()
+
+# Graph 6: Correlation Heatmap
+
+numeric_df = df.select_dtypes(include=np.number)
+corr = numeric_df.corr()
+
+plt.figure(figsize=(10, 6))
+sns.heatmap(
+    corr,
+    annot=True,
+    cmap='coolwarm',
+    fmt='.2f'
+)
+plt.title("Correlation Heatmap")
+plt.tight_layout()
+plt.show()
+
+# ============================================================
+# 5. SEPARATE FEATURES AND TARGET
+# ============================================================
+
+X = df.drop(columns=['customerID', 'Churn'])
+
+y = df['Churn'].map({
+    'Yes': 1,
+    'No': 0
+})
+
+print("\nFeatures Shape:", X.shape)
+print("Target Shape:", y.shape)
+
+# ============================================================
+# 6. ENCODE CATEGORICAL DATA
+# ============================================================
+
+X = pd.get_dummies(
+    X,
+    drop_first=True,
+    dtype=int
+)
+
+feature_columns = X.columns.tolist()
+
+print("\nEncoded Features:", X.shape)
+
+# ============================================================
+# 7. SPLIT DATASET
+# ============================================================
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42,
+    stratify=y
+)
+
+print("\nTraining Data:", X_train.shape)
+print("Testing Data:", X_test.shape)
+
+# ============================================================
+# 8. TRAIN RANDOM FOREST MODEL
+# ============================================================
+
+model = RandomForestClassifier(
+    n_estimators=100,
+    random_state=42,
+    class_weight='balanced'
+)
+
+model.fit(X_train, y_train)
+
+print("\nRandom Forest Model Training Completed!")
+
+# ============================================================
+# 9. MAKE PREDICTIONS
+# ============================================================
+
+y_pred = model.predict(X_test)
+
+print("\nFirst 10 Predictions:")
+print(y_pred[:10])
+
+# ============================================================
+# 10. MODEL ACCURACY
+# ============================================================
+
+accuracy = accuracy_score(y_test, y_pred)
+
+print("\nModel Accuracy:", round(accuracy * 100, 2), "%")
+
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+
+# ============================================================
+# 11. CONFUSION MATRIX
+# ============================================================
+
+cm = confusion_matrix(y_test, y_pred)
+
+plt.figure(figsize=(6, 4))
+
+sns.heatmap(
+    cm,
+    annot=True,
+    fmt='d',
+    cmap='Blues',
+    xticklabels=['No Churn', 'Churn'],
+    yticklabels=['No Churn', 'Churn']
+)
+
+plt.title("Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.show()
+
+# ============================================================
+# 12. FEATURE IMPORTANCE
+# ============================================================
+
+importance = pd.Series(
+    model.feature_importances_,
+    index=X.columns
+).sort_values(ascending=False)
+
+print("\nTop 10 Important Features:")
+print(importance.head(10))
+
+plt.figure(figsize=(9, 6))
+
+importance.head(10).sort_values().plot(kind='barh')
+
+plt.title("Top 10 Important Features")
+plt.xlabel("Importance Score")
+plt.tight_layout()
+plt.show()
+
+# ============================================================
+# 13. ROC CURVE AND AUC SCORE
+# ============================================================
+
+y_probability = model.predict_proba(X_test)[:, 1]
+
+fpr, tpr, thresholds = roc_curve(
+    y_test,
+    y_probability
+)
+
+auc_score = roc_auc_score(
+    y_test,
+    y_probability
+)
+
+plt.figure(figsize=(7, 5))
+
+plt.plot(
+    fpr,
+    tpr,
+    label=f"Random Forest AUC = {auc_score:.3f}"
+)
+
+plt.plot([0, 1], [0, 1], linestyle='--')
+
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve")
+plt.legend()
+plt.show()
+
+print("ROC-AUC Score:", round(auc_score, 3))
+
+# ============================================================
+# 14. CROSS VALIDATION
+# ============================================================
+
+cv_scores = cross_val_score(
+    model,
+    X,
+    y,
+    cv=5,
+    scoring='accuracy'
+)
+
+print("\nCross Validation Scores:", cv_scores)
+
+print(
+    "Average Cross Validation Accuracy:",
+    round(cv_scores.mean() * 100, 2),
+    "%"
+)
+
+# ============================================================
+# 15. SAVE TRAINED MODEL
+# ============================================================
+
+joblib.dump(model, "churn_model.pkl")
+
+joblib.dump(
+    feature_columns,
+    "feature_columns.pkl"
+)
+
+print("\nModel Saved: churn_model.pkl")
+print("Features Saved: feature_columns.pkl")
+
+# ============================================================
+# 16. VERIFY SAVED FILES
+# ============================================================
+
+print("\nFile Verification:")
+
+print(
+    "churn_model.pkl:",
+    os.path.exists("churn_model.pkl")
+)
+
+print(
+    "feature_columns.pkl:",
+    os.path.exists("feature_columns.pkl")
+)
+
+print("\n======================================")
+print("CUSTOMER CHURN PROJECT COMPLETED!")
+print("======================================")
