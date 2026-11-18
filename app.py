@@ -1,6 +1,6 @@
 # ==========================================================
 # AI CUSTOMER CHURN PREDICTION WEB APPLICATION
-# Python + Streamlit + Random Forest + RAG + Gemini AI
+# Python + Streamlit + Random Forest + RAG + Gemini AI + Metrics + Feature Importance
 # ==========================================================
 
 import streamlit as st
@@ -11,6 +11,7 @@ import re
 import os
 from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 
 # Gemini AI
 from google import genai
@@ -27,18 +28,18 @@ st.set_page_config(
 )
 
 st.title("📊 AI-Powered Customer Churn Prediction")
-st.subheader("Machine Learning + RAG + Generative AI")
+st.subheader("Machine Learning + RAG + Generative AI + Model Evaluation + Feature Importance")
 
 st.write(
-    "Predict customer churn and generate intelligent "
-    "customer retention recommendations."
+    "Predict customer churn, evaluate model performance metrics, "
+    "analyze key feature importance, and generate intelligent customer retention recommendations."
 )
 
 st.divider()
 
 
 # --------------------------------------------------
-# 2. LOAD OR AUTO-CREATE MACHINE LEARNING MODEL
+# 2. LOAD OR AUTO-CREATE MACHINE LEARNING MODEL & EVAL DATA
 # --------------------------------------------------
 
 @st.cache_resource
@@ -46,53 +47,52 @@ def load_or_create_model():
     model_path = "churn_model.pkl"
     features_path = "feature_columns.pkl"
 
+    np.random.seed(42)
+    n_samples = 300
+
+    train_df = pd.DataFrame({
+        "gender": np.random.choice(["Female", "Male"], n_samples),
+        "SeniorCitizen": np.random.choice([0, 1], n_samples),
+        "Partner": np.random.choice(["Yes", "No"], n_samples),
+        "Dependents": np.random.choice(["Yes", "No"], n_samples),
+        "tenure": np.random.randint(0, 72, n_samples),
+        "PhoneService": np.random.choice(["Yes", "No"], n_samples),
+        "MultipleLines": np.random.choice(["Yes", "No", "No phone service"], n_samples),
+        "InternetService": np.random.choice(["DSL", "Fiber optic", "No"], n_samples),
+        "OnlineSecurity": np.random.choice(["Yes", "No", "No internet service"], n_samples),
+        "OnlineBackup": np.random.choice(["Yes", "No", "No internet service"], n_samples),
+        "DeviceProtection": np.random.choice(["Yes", "No", "No internet service"], n_samples),
+        "TechSupport": np.random.choice(["Yes", "No", "No internet service"], n_samples),
+        "StreamingTV": np.random.choice(["Yes", "No", "No internet service"], n_samples),
+        "StreamingMovies": np.random.choice(["Yes", "No", "No internet service"], n_samples),
+        "Contract": np.random.choice(["Month-to-month", "One year", "Two year"], n_samples),
+        "PaperlessBilling": np.random.choice(["Yes", "No"], n_samples),
+        "PaymentMethod": np.random.choice(["Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"], n_samples),
+        "MonthlyCharges": np.random.uniform(20.0, 120.0, n_samples),
+        "TotalCharges": np.random.uniform(100.0, 8000.0, n_samples),
+        "Churn": np.random.choice([0, 1], n_samples)
+    })
+
+    X = train_df.drop(columns=["Churn"])
+    y = train_df["Churn"]
+
+    X_encoded = pd.get_dummies(X, drop_first=True, dtype=int)
+    feature_columns = list(X_encoded.columns)
+
     # Auto-create model files if they do not exist
     if not os.path.exists(model_path) or not os.path.exists(features_path):
-        np.random.seed(42)
-        n_samples = 200
-
-        train_df = pd.DataFrame({
-            "gender": np.random.choice(["Female", "Male"], n_samples),
-            "SeniorCitizen": np.random.choice([0, 1], n_samples),
-            "Partner": np.random.choice(["Yes", "No"], n_samples),
-            "Dependents": np.random.choice(["Yes", "No"], n_samples),
-            "tenure": np.random.randint(0, 72, n_samples),
-            "PhoneService": np.random.choice(["Yes", "No"], n_samples),
-            "MultipleLines": np.random.choice(["Yes", "No", "No phone service"], n_samples),
-            "InternetService": np.random.choice(["DSL", "Fiber optic", "No"], n_samples),
-            "OnlineSecurity": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-            "OnlineBackup": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-            "DeviceProtection": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-            "TechSupport": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-            "StreamingTV": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-            "StreamingMovies": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-            "Contract": np.random.choice(["Month-to-month", "One year", "Two year"], n_samples),
-            "PaperlessBilling": np.random.choice(["Yes", "No"], n_samples),
-            "PaymentMethod": np.random.choice(["Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"], n_samples),
-            "MonthlyCharges": np.random.uniform(20.0, 120.0, n_samples),
-            "TotalCharges": np.random.uniform(100.0, 8000.0, n_samples),
-            "Churn": np.random.choice([0, 1], n_samples)
-        })
-
-        X = train_df.drop(columns=["Churn"])
-        y = train_df["Churn"]
-
-        X_encoded = pd.get_dummies(X, drop_first=True, dtype=int)
-        feature_columns = list(X_encoded.columns)
-
         model = RandomForestClassifier(random_state=42)
         model.fit(X_encoded, y)
-
         joblib.dump(model, model_path)
         joblib.dump(feature_columns, features_path)
 
     model = joblib.load(model_path)
     feature_columns = joblib.load(features_path)
-    return model, feature_columns
+    return model, feature_columns, X_encoded, y
 
 
 try:
-    model, feature_columns = load_or_create_model()
+    model, feature_columns, X_train_encoded, y_train = load_or_create_model()
 except Exception as e:
     st.error(f"Model loading error: {e}")
     st.stop()
@@ -109,7 +109,6 @@ DOCUMENTS_PATH = Path("rag/documents")
 def load_rag_documents():
     documents = []
     
-    # Ensure directory exists and has a sample doc if empty
     DOCUMENTS_PATH.mkdir(parents=True, exist_ok=True)
     sample_file = DOCUMENTS_PATH / "retention_policy.txt"
     if not sample_file.exists():
@@ -272,7 +271,7 @@ st.divider()
 
 
 # --------------------------------------------------
-# 7. CUSTOMER CHURN PREDICTION
+# 7. CUSTOMER CHURN PREDICTION & EVALUATION METRICS
 # --------------------------------------------------
 
 if st.button("🔍 Predict Customer Churn", use_container_width=True):
@@ -308,10 +307,10 @@ if st.button("🔍 Predict Customer Churn", use_container_width=True):
     prediction_label = "Churn" if prediction == 1 else "No Churn"
 
     # --------------------------------------------------
-    # 8. DISPLAY ML RESULTS
+    # 8. DISPLAY ML RESULTS & EVALUATION METRICS
     # --------------------------------------------------
 
-    st.header("📈 Machine Learning Results")
+    st.header("📈 Machine Learning Results & Performance")
 
     col1, col2 = st.columns(2)
 
@@ -333,6 +332,49 @@ if st.button("🔍 Predict Customer Churn", use_container_width=True):
 
     st.subheader("Customer Churn Probability")
     st.bar_chart(chart_data.set_index("Customer Status"))
+
+    # Calculate Evaluation Metrics on training/reference dataset
+    y_pred = model.predict(X_train_encoded)
+    acc = accuracy_score(y_train, y_pred)
+    prec = precision_score(y_train, y_pred, zero_division=0)
+    rec = recall_score(y_train, y_pred, zero_division=0)
+    f1 = f1_score(y_train, y_pred, zero_division=0)
+    cm = confusion_matrix(y_train, y_pred)
+
+    st.divider()
+    st.subheader("🎯 Model Performance Metrics")
+
+    mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+    with mcol1:
+        st.metric("Accuracy", f"{acc:.2f}")
+    with mcol2:
+        st.metric("Precision", f"{prec:.2f}")
+    with mcol3:
+        st.metric("Recall", f"{rec:.2f}")
+    with mcol4:
+        st.metric("F1-Score", f"{f1:.2f}")
+
+    st.subheader("📋 Confusion Matrix")
+    cm_df = pd.DataFrame(
+        cm,
+        index=["Actual: No Churn", "Actual: Churn"],
+        columns=["Predicted: No Churn", "Predicted: Churn"]
+    )
+    st.dataframe(cm_df, use_container_width=True)
+
+    # --------------------------------------------------
+    # 8.5. FEATURE IMPORTANCE CHART
+    # --------------------------------------------------
+    st.divider()
+    st.subheader("🔍 Top Feature Importances (What drives Churn?)")
+    
+    importances = model.feature_importances_
+    feature_importance_df = pd.DataFrame({
+        "Feature": feature_columns,
+        "Importance": importances
+    }).sort_values(by="Importance", ascending=False).head(10)
+
+    st.bar_chart(feature_importance_df.set_index("Feature"))
 
     # --------------------------------------------------
     # 9. RAG + GEMINI RECOMMENDATIONS
