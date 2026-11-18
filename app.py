@@ -1,4 +1,4 @@
-# ============================================================
+## ============================================================
 # CUSTOMER CHURN AI - ADVANCED ENTERPRISE SUITE
 # Machine Learning + Streamlit + RAG + Gemini AI + Explainability
 # Developed by Swapna V
@@ -89,7 +89,7 @@ uploaded_file = st.sidebar.file_uploader(
     type=["csv"]
 )
 
-default_path = r"C:\Users\swapn\Downloads\WA_Fn-UseC_-Telco-Customer-Churn.csv"
+default_path = r"C:\Users\swapn\Downloads\AI-Powered Customer Churn Prediction\WA_Fn-UseC_-Telco-Customer-Churn.csv"
 
 try:
     if uploaded_file is not None:
