@@ -207,3 +207,9 @@ The application will open in your web browser.
 ## Project Purpose
 
 This project demonstrates the application of machine learning, document retrieval, and generative AI to customer churn prediction and retention decision support.
+
+🚀 Live Demo
+
+
+
+Live Application: AI-Powered Customer Churn Prediction – Streamlit App
