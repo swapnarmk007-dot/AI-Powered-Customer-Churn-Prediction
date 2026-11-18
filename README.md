@@ -208,8 +208,8 @@ The application will open in your web browser.
 
 This project demonstrates the application of machine learning, document retrieval, and generative AI to customer churn prediction and retention decision support.
 
-🚀 Live Demo
+## 🚀 Live Demo
 
+**Live Application:** [https://ai-powered-customer-churn-prediction-hue7ctp3dgwaealbz49678.streamlit.app/](https://ai-powered-customer-churn-pue7ctp3dgwaealbz49678.streamlit.app/)
 
-
-Live Application:`https://ai-powered-customer-churn-prediction-hue7ctp3dgwaealbz49678.streamlit.app/`
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ai-powered-customer-churn-pue7ctp3dgwaealbz49678.streamlit.app/)
