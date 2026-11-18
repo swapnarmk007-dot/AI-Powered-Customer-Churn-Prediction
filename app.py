@@ -1,119 +1,210 @@
-# ==========================================================
-# AI CUSTOMER CHURN PREDICTION WEB APPLICATION
-# Python + Streamlit + Random Forest + RAG + Gemini AI + Metrics + Feature Importance
-# ==========================================================
+# ============================================================
+# CUSTOMER CHURN AI - ADVANCED ENTERPRISE SUITE
+# Machine Learning + Streamlit + RAG + Gemini AI + Explainability
+# Developed by Swapna V
+# ============================================================
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
-import re
+import matplotlib.pyplot as plt
+import seaborn as sns
 import os
+import re
 from pathlib import Path
+
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix,
+    roc_auc_score,
+    roc_curve
+)
 
 # Gemini AI
 from google import genai
 
 
-# --------------------------------------------------
+# ------------------------------------------------------------
 # 1. PAGE CONFIGURATION
-# --------------------------------------------------
+# ------------------------------------------------------------
 
 st.set_page_config(
-    page_title="AI Customer Churn Prediction",
+    page_title="Customer Churn AI Suite",
     page_icon="📊",
     layout="wide"
 )
 
-st.title("📊 AI-Powered Customer Churn Prediction")
-st.subheader("Machine Learning + RAG + Generative AI + Model Evaluation + Feature Importance")
+# ------------------------------------------------------------
+# 2. CUSTOM CSS
+# ------------------------------------------------------------
 
-st.write(
-    "Predict customer churn, evaluate model performance metrics, "
-    "analyze key feature importance, and generate intelligent customer retention recommendations."
+st.markdown("""
+<style>
+.main { background-color: #f8f9fc; }
+h1, h2, h3 { color: #243b55; }
+.stMetric {
+    background-color: #ffffff;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+# ------------------------------------------------------------
+# 3. LOAD DATASET
+# ------------------------------------------------------------
+
+@st.cache_data
+def load_data(file):
+    data = pd.read_csv(file)
+    data.columns = data.columns.str.strip()
+
+    if "Churn" not in data.columns:
+        raise ValueError("Churn column not found in dataset.")
+
+    data["TotalCharges"] = pd.to_numeric(
+        data["TotalCharges"].astype(str).str.strip(),
+        errors="coerce"
+    )
+    data["Churn"] = data["Churn"].astype(str).str.strip()
+    data = data[data["Churn"].isin(["Yes", "No"])].copy()
+    return data
+
+
+st.sidebar.header("📂 Dataset & Configuration")
+
+uploaded_file = st.sidebar.file_uploader(
+    "Upload Customer Churn CSV",
+    type=["csv"]
 )
 
-st.divider()
-
-
-# --------------------------------------------------
-# 2. LOAD OR AUTO-CREATE MACHINE LEARNING MODEL & EVAL DATA
-# --------------------------------------------------
-
-@st.cache_resource
-def load_or_create_model():
-    model_path = "churn_model.pkl"
-    features_path = "feature_columns.pkl"
-
-    np.random.seed(42)
-    n_samples = 300
-
-    train_df = pd.DataFrame({
-        "gender": np.random.choice(["Female", "Male"], n_samples),
-        "SeniorCitizen": np.random.choice([0, 1], n_samples),
-        "Partner": np.random.choice(["Yes", "No"], n_samples),
-        "Dependents": np.random.choice(["Yes", "No"], n_samples),
-        "tenure": np.random.randint(0, 72, n_samples),
-        "PhoneService": np.random.choice(["Yes", "No"], n_samples),
-        "MultipleLines": np.random.choice(["Yes", "No", "No phone service"], n_samples),
-        "InternetService": np.random.choice(["DSL", "Fiber optic", "No"], n_samples),
-        "OnlineSecurity": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-        "OnlineBackup": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-        "DeviceProtection": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-        "TechSupport": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-        "StreamingTV": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-        "StreamingMovies": np.random.choice(["Yes", "No", "No internet service"], n_samples),
-        "Contract": np.random.choice(["Month-to-month", "One year", "Two year"], n_samples),
-        "PaperlessBilling": np.random.choice(["Yes", "No"], n_samples),
-        "PaymentMethod": np.random.choice(["Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"], n_samples),
-        "MonthlyCharges": np.random.uniform(20.0, 120.0, n_samples),
-        "TotalCharges": np.random.uniform(100.0, 8000.0, n_samples),
-        "Churn": np.random.choice([0, 1], n_samples)
-    })
-
-    X = train_df.drop(columns=["Churn"])
-    y = train_df["Churn"]
-
-    X_encoded = pd.get_dummies(X, drop_first=True, dtype=int)
-    feature_columns = list(X_encoded.columns)
-
-    # Auto-create model files if they do not exist
-    if not os.path.exists(model_path) or not os.path.exists(features_path):
-        model = RandomForestClassifier(random_state=42)
-        model.fit(X_encoded, y)
-        joblib.dump(model, model_path)
-        joblib.dump(feature_columns, features_path)
-
-    model = joblib.load(model_path)
-    feature_columns = joblib.load(features_path)
-    return model, feature_columns, X_encoded, y
-
+default_path = r"C:\Users\swapn\Downloads\WA_Fn-UseC_-Telco-Customer-Churn.csv"
 
 try:
-    model, feature_columns, X_train_encoded, y_train = load_or_create_model()
+    if uploaded_file is not None:
+        df = load_data(uploaded_file)
+    elif os.path.exists(default_path):
+        df = load_data(default_path)
+    elif os.path.exists("data/WA_Fn-UseC_-Telco-Customer-Churn.csv"):
+        df = load_data("data/WA_Fn-UseC_-Telco-Customer-Churn.csv")
+    else:
+        st.warning("Please upload your Telco Customer Churn CSV file in the sidebar.")
+        st.stop()
 except Exception as e:
-    st.error(f"Model loading error: {e}")
+    st.error(f"Dataset loading error: {e}")
     st.stop()
 
 
-# --------------------------------------------------
-# 3. LOAD OR AUTO-CREATE RAG DOCUMENTS
-# --------------------------------------------------
+# ------------------------------------------------------------
+# 4. PREPROCESSING & MODEL TRAINING
+# ------------------------------------------------------------
+
+df = df.drop_duplicates().copy()
+if "customerID" in df.columns:
+    df = df.drop(columns=["customerID"])
+
+X = df.drop(columns=["Churn"])
+y = df["Churn"].map({"No": 0, "Yes": 1})
+
+valid_rows = y.notna()
+X = X.loc[valid_rows].copy()
+y = y.loc[valid_rows].astype(int)
+
+numeric_features = X.select_dtypes(include=["int64", "float64"]).columns.tolist()
+categorical_features = X.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+
+
+@st.cache_resource
+def train_model(X, y):
+    num_feat = X.select_dtypes(include=["int64", "float64"]).columns.tolist()
+    cat_feat = X.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+
+    numeric_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", StandardScaler())
+    ])
+
+    categorical_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("encoder", OneHotEncoder(handle_unknown="ignore"))
+    ])
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ("num", numeric_transformer, num_feat),
+            ("cat", categorical_transformer, cat_feat)
+        ]
+    )
+
+    model = Pipeline(steps=[
+        ("preprocessor", preprocessor),
+        ("classifier", RandomForestClassifier(
+            n_estimators=200,
+            max_depth=12,
+            min_samples_split=5,
+            class_weight="balanced",
+            random_state=42,
+            n_jobs=-1
+        ))
+    ])
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.20, random_state=42, stratify=y
+    )
+
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_test)
+    y_prob = model.predict_proba(X_test)[:, 1]
+
+    acc = accuracy_score(y_test, y_pred)
+    prec = precision_score(y_test, y_pred, zero_division=0)
+    rec = recall_score(y_test, y_pred, zero_division=0.0)
+    f1 = f1_score(y_test, y_pred, zero_division=0)
+    roc_auc = roc_auc_score(y_test, y_prob)
+    cm = confusion_matrix(y_test, y_pred)
+
+    return model, X_test, y_test, y_pred, y_prob, acc, prec, rec, f1, roc_auc, cm
+
+
+with st.spinner("Training Random Forest Machine Learning Model..."):
+    (
+        model, X_test, y_test, y_pred, y_prob,
+        accuracy, precision, recall, f1, roc_auc, cm
+    ) = train_model(X, y)
+
+
+# ------------------------------------------------------------
+# 5. LOAD RAG DOCUMENTS
+# ------------------------------------------------------------
 
 DOCUMENTS_PATH = Path("rag/documents")
-
 
 @st.cache_data
 def load_rag_documents():
     documents = []
-    
     DOCUMENTS_PATH.mkdir(parents=True, exist_ok=True)
+    
     sample_file = DOCUMENTS_PATH / "retention_policy.txt"
     if not sample_file.exists():
         with open(sample_file, "w", encoding="utf-8") as f:
-            f.write("Company Retention Policy: Offer 15% discount on annual contracts for high risk customers. Provide dedicated technical support onboarding for fiber optic users.")
+            f.write(
+                "Company Retention Policy: Offer 15% discount on annual contracts "
+                "for high-risk churn customers. Provide dedicated technical support "
+                "onboarding for fiber optic users. Customers with tenure under 12 months "
+                "receive a complimentary account review and loyalty bonus."
+            )
 
     for file_path in DOCUMENTS_PATH.glob("*.txt"):
         with open(file_path, "r", encoding="utf-8") as file:
@@ -121,307 +212,297 @@ def load_rag_documents():
                 "filename": file_path.name,
                 "content": file.read()
             })
-
     return documents
 
+rag_documents = load_rag_documents()
 
-try:
-    documents = load_rag_documents()
-except Exception as e:
-    st.error(f"RAG document loading error: {e}")
-    st.stop()
-
-
-# --------------------------------------------------
-# 4. RAG RETRIEVAL
-# --------------------------------------------------
 
 def retrieve_documents(query, documents, top_k=3):
+    if not documents:
+        return []
     query_words = set(re.findall(r"\w+", query.lower()))
     results = []
-
     for document in documents:
-        content = document["content"]
-        content_words = set(re.findall(r"\w+", content.lower()))
+        content_words = set(re.findall(r"\w+", document["content"].lower()))
         score = len(query_words.intersection(content_words))
         results.append((score, document))
-
     results.sort(key=lambda item: item[0], reverse=True)
-
-    return [
-        document
-        for score, document in results[:top_k]
-        if score >= 0
-    ]
+    return [doc for score, doc in results[:top_k]]
 
 
-# --------------------------------------------------
-# 5. GEMINI AI RESPONSE
-# --------------------------------------------------
-
-def generate_recommendations(customer_details, prediction, probability):
-    api_key = st.secrets.get("GEMINI_API_KEY", None)
-
+def generate_gemini_response(prompt_text):
+    api_key = st.secrets.get("GEMINI_API_KEY", None) or os.getenv("GEMINI_API_KEY")
     if not api_key:
-        api_key = os.getenv("GEMINI_API_KEY")
-
-    if not api_key:
-        return (
-            "Gemini API key is not configured. "
-            "Please configure `GEMINI_API_KEY` in Streamlit secrets or environment variables "
-            "to generate AI-powered recommendations."
-        ), []
-
-    query = f"""
-    Customer churn prediction: {prediction}.
-    Churn probability: {probability:.2f}%.
-    Customer details: {customer_details}.
-    Suggest customer retention strategies.
-    """
-
-    retrieved_documents = retrieve_documents(query, documents)
-
-    context = "\n\n".join(
-        document["content"]
-        for document in retrieved_documents
-    ) if retrieved_documents else "No internal policy documents found."
-
-    prompt = f"""
-    You are an experienced customer retention analyst.
-
-    Use the following retrieved knowledge as your reference.
-
-    RETRIEVED KNOWLEDGE:
-    {context}
-
-    CUSTOMER INFORMATION:
-    {customer_details}
-
-    MACHINE LEARNING PREDICTION:
-    {prediction}
-
-    CHURN PROBABILITY:
-    {probability:.2f}%
-
-    TASK:
-    1. Explain the prediction in simple language.
-    2. Identify possible customer churn risk factors.
-    3. Recommend five practical retention strategies.
-    4. Explain how customer support can help.
-    5. Suggest suitable pricing or loyalty offers.
-
-    Only use the retrieved knowledge for company-specific recommendations. 
-    Clearly identify any additional suggestions as general recommendations.
-    Do not claim that the prediction proves why a customer will leave.
-    """
-
+        return "⚠️ Gemini API key not configured. Set `GEMINI_API_KEY` in Streamlit secrets."
     try:
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=prompt
+            contents=prompt_text
         )
-        return response.text, retrieved_documents
-
+        return response.text
     except Exception as e:
-        return f"Gemini API error: {e}", retrieved_documents
+        return f"Gemini API error: {e}"
 
 
-# --------------------------------------------------
-# 6. CUSTOMER INFORMATION FORM
-# --------------------------------------------------
+# ------------------------------------------------------------
+# 6. SIDEBAR NAVIGATION
+# ------------------------------------------------------------
 
-st.header("👤 Customer Information")
+st.sidebar.title("📊 CUSTOMER CHURN AI")
 
-col1, col2 = st.columns(2)
-
-with col1:
-    gender = st.selectbox("Gender", ["Female", "Male"])
-    senior_citizen = st.selectbox("Senior Citizen", [0, 1])
-    partner = st.selectbox("Partner", ["Yes", "No"])
-    dependents = st.selectbox("Dependents", ["Yes", "No"])
-    tenure = st.number_input("Tenure (Months)", min_value=0, max_value=72, value=12)
-    phone_service = st.selectbox("Phone Service", ["Yes", "No"])
-    multiple_lines = st.selectbox("Multiple Lines", ["Yes", "No", "No phone service"])
-    internet_service = st.selectbox("Internet Service", ["DSL", "Fiber optic", "No"])
-    online_security = st.selectbox("Online Security", ["Yes", "No", "No internet service"])
-
-with col2:
-    online_backup = st.selectbox("Online Backup", ["Yes", "No", "No internet service"])
-    device_protection = st.selectbox("Device Protection", ["Yes", "No", "No internet service"])
-    tech_support = st.selectbox("Tech Support", ["Yes", "No", "No internet service"])
-    streaming_tv = st.selectbox("Streaming TV", ["Yes", "No", "No internet service"])
-    streaming_movies = st.selectbox("Streaming Movies", ["Yes", "No", "No internet service"])
-    contract = st.selectbox("Contract", ["Month-to-month", "One year", "Two year"])
-    paperless_billing = st.selectbox("Paperless Billing", ["Yes", "No"])
-    payment_method = st.selectbox(
-        "Payment Method",
-        [
-            "Electronic check",
-            "Mailed check",
-            "Bank transfer (automatic)",
-            "Credit card (automatic)"
-        ]
-    )
-
-monthly_charges = st.number_input("Monthly Charges ($)", min_value=0.0, value=70.0)
-total_charges = st.number_input("Total Charges ($)", min_value=0.0, value=840.0)
-
-st.divider()
-
-
-# --------------------------------------------------
-# 7. CUSTOMER CHURN PREDICTION & EVALUATION METRICS
-# --------------------------------------------------
-
-if st.button("🔍 Predict Customer Churn", use_container_width=True):
-
-    input_data = pd.DataFrame({
-        "gender": [gender],
-        "SeniorCitizen": [senior_citizen],
-        "Partner": [partner],
-        "Dependents": [dependents],
-        "tenure": [tenure],
-        "PhoneService": [phone_service],
-        "MultipleLines": [multiple_lines],
-        "InternetService": [internet_service],
-        "OnlineSecurity": [online_security],
-        "OnlineBackup": [online_backup],
-        "DeviceProtection": [device_protection],
-        "TechSupport": [tech_support],
-        "StreamingTV": [streaming_tv],
-        "StreamingMovies": [streaming_movies],
-        "Contract": [contract],
-        "PaperlessBilling": [paperless_billing],
-        "PaymentMethod": [payment_method],
-        "MonthlyCharges": [monthly_charges],
-        "TotalCharges": [total_charges]
-    })
-
-    input_encoded = pd.get_dummies(input_data, drop_first=True, dtype=int)
-    input_encoded = input_encoded.reindex(columns=feature_columns, fill_value=0)
-
-    prediction = model.predict(input_encoded)[0]
-    probability = model.predict_proba(input_encoded)[0][1] * 100
-
-    prediction_label = "Churn" if prediction == 1 else "No Churn"
-
-    # --------------------------------------------------
-    # 8. DISPLAY ML RESULTS & EVALUATION METRICS
-    # --------------------------------------------------
-
-    st.header("📈 Machine Learning Results & Performance")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.metric("Churn Probability", f"{probability:.2f}%")
-
-    with col2:
-        st.metric("Prediction", prediction_label)
-
-    if prediction == 1:
-        st.error("⚠️ Customer is predicted to churn.")
-    else:
-        st.success("✅ Customer is predicted to stay.")
-
-    chart_data = pd.DataFrame({
-        "Customer Status": ["No Churn", "Churn"],
-        "Probability": [100 - probability, probability]
-    })
-
-    st.subheader("Customer Churn Probability")
-    st.bar_chart(chart_data.set_index("Customer Status"))
-
-    # Calculate Evaluation Metrics on training/reference dataset
-    y_pred = model.predict(X_train_encoded)
-    acc = accuracy_score(y_train, y_pred)
-    prec = precision_score(y_train, y_pred, zero_division=0)
-    rec = recall_score(y_train, y_pred, zero_division=0)
-    f1 = f1_score(y_train, y_pred, zero_division=0)
-    cm = confusion_matrix(y_train, y_pred)
-
-    st.divider()
-    st.subheader("🎯 Model Performance Metrics")
-
-    mcol1, mcol2, mcol3, mcol4 = st.columns(4)
-    with mcol1:
-        st.metric("Accuracy", f"{acc:.2f}")
-    with mcol2:
-        st.metric("Precision", f"{prec:.2f}")
-    with mcol3:
-        st.metric("Recall", f"{rec:.2f}")
-    with mcol4:
-        st.metric("F1-Score", f"{f1:.2f}")
-
-    st.subheader("📋 Confusion Matrix")
-    cm_df = pd.DataFrame(
-        cm,
-        index=["Actual: No Churn", "Actual: Churn"],
-        columns=["Predicted: No Churn", "Predicted: Churn"]
-    )
-    st.dataframe(cm_df, use_container_width=True)
-
-    # --------------------------------------------------
-    # 8.5. FEATURE IMPORTANCE CHART
-    # --------------------------------------------------
-    st.divider()
-    st.subheader("🔍 Top Feature Importances (What drives Churn?)")
-    
-    importances = model.feature_importances_
-    feature_importance_df = pd.DataFrame({
-        "Feature": feature_columns,
-        "Importance": importances
-    }).sort_values(by="Importance", ascending=False).head(10)
-
-    st.bar_chart(feature_importance_df.set_index("Feature"))
-
-    # --------------------------------------------------
-    # 9. RAG + GEMINI RECOMMENDATIONS
-    # --------------------------------------------------
-
-    st.divider()
-    st.header("🤖 RAG + Gemini AI Recommendations")
-
-    customer_details = input_data.iloc[0].to_dict()
-
-    with st.spinner("Retrieving relevant documents and generating recommendations..."):
-        ai_response, retrieved_documents = generate_recommendations(
-            customer_details,
-            prediction_label,
-            probability
-        )
-
-    st.subheader("AI Retention Recommendations")
-    st.markdown(ai_response)
-
-    st.subheader("📚 Retrieved RAG Documents")
-
-    if retrieved_documents:
-        for document in retrieved_documents:
-            with st.expander(document["filename"]):
-                st.write(document["content"])
-    else:
-        st.info("No relevant documents retrieved.")
-
-
-# --------------------------------------------------
-# 10. FOOTER
-# --------------------------------------------------
-
-st.divider()
-
-st.markdown(
-    """
-    **AI-Powered Customer Churn Prediction System**
-
-    Technologies:
-    - Python
-    - Random Forest Machine Learning
-    - Streamlit
-    - RAG
-    - Google Gemini AI
-
-    Developed by Swapna V
-    """
+page = st.sidebar.radio(
+    "Navigation",
+    [
+        "📊 Dashboard",
+        "📈 Customer Insights",
+        "🤖 Model Performance",
+        "🔍 Customer Prediction",
+        "💡 AI Retention Recommendations",
+        "🧠 RAG Knowledge Assistant",
+        "📂 Batch Prediction",
+        "🔬 Model Explainability",
+        "ℹ️ About Project"
+    ]
 )
+
+
+# ============================================================
+# TAB 1: DASHBOARD
+# ============================================================
+if page == "📊 Dashboard":
+    st.header("📊 Executive Churn Dashboard")
+    
+    total_customers = len(df)
+    churned = (df["Churn"] == "Yes").sum()
+    retained = (df["Churn"] == "No").sum()
+    churn_rate = churned / total_customers * 100
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Customers", f"{total_customers:,}")
+    col2.metric("Churned Customers", f"{churned:,}")
+    col3.metric("Retained Customers", f"{retained:,}")
+    col4.metric("Overall Churn Rate", f"{churn_rate:.2f}%")
+
+    st.divider()
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Churn Distribution")
+        counts = df["Churn"].value_counts()
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.pie(counts, labels=counts.index, autopct="%1.1f%%", startangle=90, colors=["#4e79a7", "#e15759"])
+        st.pyplot(fig)
+    with right:
+        st.subheader("Contract Type vs Churn")
+        if "Contract" in df.columns:
+            fig, ax = plt.subplots(figsize=(6, 4))
+            sns.countplot(data=df, x="Contract", hue="Churn", palette="Set2", ax=ax)
+            st.pyplot(fig)
+
+
+# ============================================================
+# TAB 2: CUSTOMER INSIGHTS
+# ============================================================
+elif page == "📈 Customer Insights":
+    st.header("📈 Deep-Dive Customer Insights")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Monthly Charges Distribution")
+        fig, ax = plt.subplots(figsize=(6, 4))
+        sns.histplot(data=df, x="MonthlyCharges", hue="Churn", bins=30, kde=True, ax=ax)
+        st.pyplot(fig)
+    with col2:
+        st.subheader("Tenure vs Monthly Charges")
+        fig, ax = plt.subplots(figsize=(6, 4))
+        sns.scatterplot(data=df, x="tenure", y="MonthlyCharges", hue="Churn", alpha=0.7, ax=ax)
+        st.pyplot(fig)
+
+
+# ============================================================
+# TAB 3: MODEL PERFORMANCE
+# ============================================================
+elif page == "🤖 Model Performance":
+    st.header("🤖 Machine Learning Model Performance")
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Accuracy", f"{accuracy * 100:.2f}%")
+    col2.metric("Precision", f"{precision * 100:.2f}%")
+    col3.metric("Recall", f"{recall * 100:.2f}%")
+    col4.metric("F1-Score", f"{f1 * 100:.2f}%")
+    col5.metric("ROC-AUC", f"{roc_auc:.3f}")
+
+    st.divider()
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.subheader("Confusion Matrix")
+        fig, ax = plt.subplots(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=["Retained", "Churned"], yticklabels=["Retained", "Churned"], ax=ax)
+        st.pyplot(fig)
+    with col_b:
+        st.subheader("ROC Curve")
+        fpr, tpr, _ = roc_curve(y_test, y_prob)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(fpr, tpr, color="darkorange", lw=2, label=f"ROC curve (AUC = {roc_auc:.2f})")
+        ax.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--")
+        ax.set_xlabel("False Positive Rate")
+        ax.set_ylabel("True Positive Rate")
+        ax.legend(loc="lower right")
+        st.pyplot(fig)
+
+
+# ============================================================
+# TAB 4: CUSTOMER PREDICTION
+# ============================================================
+elif page == "🔍 Customer Prediction":
+    st.header("🔍 Individual Customer Churn Prediction")
+    
+    with st.form("single_prediction_form"):
+        cust_input = {}
+        c1, c2 = st.columns(2)
+        for i, feat in enumerate(X.columns):
+            with (c1 if i % 2 == 0 else c2):
+                if feat in categorical_features:
+                    opts = sorted(X[feat].dropna().astype(str).unique().tolist())
+                    cust_input[feat] = st.selectbox(feat, opts if opts else ["Unknown"])
+                else:
+                    mn, mx, md = float(X[feat].min()), float(X[feat].max()), float(X[feat].median())
+                    cust_input[feat] = st.number_input(feat, min_value=mn, max_value=mx, value=md)
+        submitted = st.form_submit_button("Predict Churn Risk", use_container_width=True)
+
+    if submitted:
+        input_df = pd.DataFrame([cust_input], columns=X.columns)
+        pred = model.predict(input_df)[0]
+        prob = model.predict_proba(input_df)[0][1]
+        
+        st.divider()
+        res_col1, res_col2 = st.columns(2)
+        with res_col1:
+            if pred == 1:
+                st.error("⚠️ High Churn Risk (Customer Likely to Leave)")
+            else:
+                st.success("✅ Low Churn Risk (Customer Likely to Stay)")
+        with res_col2:
+            st.metric("Churn Probability", f"{prob * 100:.2f}%")
+            st.progress(float(prob))
+
+
+# ============================================================
+# TAB 5: AI RETENTION RECOMMENDATIONS
+# ============================================================
+elif page == "💡 AI Retention Recommendations":
+    st.header("💡 AI-Powered Retention Strategies")
+    st.write("Generate customized generative AI strategies using internal company RAG policies.")
+    
+    client_tenure = st.slider("Customer Tenure (Months)", 0, 72, 12)
+    client_charges = st.number_input("Monthly Charges ($)", 10.0, 200.0, 75.0)
+    client_contract = st.selectbox("Contract Type", ["Month-to-month", "One year", "Two year"])
+    
+    if st.button("Generate AI Retention Plan", use_container_width=True):
+        retrieved = retrieve_documents(f"{client_contract} tenure {client_tenure}", rag_documents)
+        context = "\n".join([d["content"] for d in retrieved])
+        
+        prompt = f"""
+        Customer Tenure: {client_tenure} months
+        Monthly Charges: ${client_charges}
+        Contract: {client_contract}
+        
+        Company Policy Knowledge:
+        {context}
+        
+        Task: Provide 4 actionable retention recommendations for this customer.
+        """
+        with st.spinner("Generating AI strategy..."):
+            ai_text = generate_gemini_response(prompt)
+        st.markdown(ai_text)
+
+
+# ============================================================
+# TAB 6: RAG KNOWLEDGE ASSISTANT
+# ============================================================
+elif page == "🧠 RAG Knowledge Assistant":
+    st.header("🧠 RAG Knowledge Assistant")
+    st.write("Query your uploaded internal company documents and retention guidelines.")
+    
+    user_query = st.text_input("Ask a question about retention policies:", "What discounts can we offer month-to-month customers?")
+    if st.button("Search Knowledge Base", use_container_width=True):
+        retrieved = retrieve_documents(user_query, rag_documents)
+        context = "\n\n".join([d["content"] for d in retrieved])
+        
+        prompt = f"Question: {user_query}\n\nReference Documents:\n{context}\n\nAnswer accurately based on references:"
+        with st.spinner("Synthesizing answer..."):
+            ans = generate_gemini_response(prompt)
+        st.subheader("AI Answer")
+        st.markdown(ans)
+        
+        st.subheader("Retrieved Source Files")
+        for doc in retrieved:
+            with st.expander(doc["filename"]):
+                st.write(doc["content"])
+
+
+# ============================================================
+# TAB 7: BATCH PREDICTION
+# ============================================================
+elif page == "📂 Batch Prediction":
+    st.header("📂 Batch Customer Churn Prediction")
+    batch_file = st.file_uploader("Upload CSV file for batch prediction", type=["csv"], key="batch")
+    
+    if batch_file:
+        batch_df = pd.read_csv(batch_file)
+        st.dataframe(batch_df.head())
+        if st.button("Run Batch Prediction"):
+            preds = model.predict(batch_df.drop(columns=["Churn", "customerID"], errors="ignore"))
+            probs = model.predict_proba(batch_df.drop(columns=["Churn", "customerID"], errors="ignore"))[:, 1]
+            batch_df["Predicted_Churn"] = preds
+            batch_df["Churn_Probability"] = probs
+            st.success("Batch predictions completed!")
+            st.dataframe(batch_df)
+
+
+# ============================================================
+# TAB 8: MODEL EXPLAINABILITY
+# ============================================================
+elif page == "🔬 Model Explainability":
+    st.header("🔬 Model Explainability & Feature Importance")
+    st.write("Understand which features drive customer churn predictions in the Random Forest model.")
+    
+    try:
+        importances = model.named_steps["classifier"].feature_importances_
+        cat_enc = model.named_steps["preprocessor"].named_transformers_["cat"].named_steps["encoder"]
+        feat_names = numeric_features + cat_enc.get_feature_names_out(categorical_features).tolist()
+        
+        fi_df = pd.DataFrame({"Feature": feat_names, "Importance": importances}).sort_values(by="Importance", ascending=False).head(15)
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.barplot(data=fi_df, x="Importance", y="Feature", palette="Blues_r", ax=ax)
+        ax.set_title("Top 15 Churn Prediction Drivers")
+        st.pyplot(fig)
+    except Exception as e:
+        st.error(f"Could not compute feature importances: {e}")
+
+
+# ============================================================
+# TAB 9: ABOUT PROJECT
+# ============================================================
+elif page == "ℹ️ About Project":
+    st.header("ℹ️ About Customer Churn AI Suite")
+    st.markdown("""
+    ### Enterprise AI Customer Churn Prediction & RAG System
+    
+    **Features:**
+    - Executive Dashboard & Deep Churn Analytics
+    - High-Performance Random Forest Classifier
+    - RAG Knowledge Assistant powered by Google Gemini AI
+    - Batch CSV prediction & model explainability
+    
+    **Developed by Swapna V**  
+    *Data Analyst | Junior Data Scientist | ML Associate*
+    """)
+
+
+# ------------------------------------------------------------
+# FOOTER
+# ------------------------------------------------------------
+st.divider()
+st.caption("Customer Churn AI Suite | Machine Learning + RAG + Gemini | Developed by Swapna V")
