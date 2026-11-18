@@ -212,4 +212,4 @@ This project demonstrates the application of machine learning, document retrieva
 
 
 
-Live Application: AI-Powered Customer Churn Prediction – Streamlit App
+Live Application:`https://ai-powered-customer-churn-prediction-hue7ctp3dgwaealbz49678.streamlit.app/`
