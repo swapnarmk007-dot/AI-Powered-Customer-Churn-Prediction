@@ -62,60 +62,66 @@ h1, h2, h3 { color: #243b55; }
 
 
 # ------------------------------------------------------------
-# 3. LOAD DATASET
+# 3. LOAD OR AUTO-GENERATE DATASET (NO MANUAL UPLOAD REQUIRED)
 # ------------------------------------------------------------
 
 @st.cache_data
-def load_data(file):
-    data = pd.read_csv(file)
+def load_data():
+    default_path = r"C:\Users\swapn\Downloads\AI-Powered Customer Churn Prediction\WA_Fn-UseC_-Telco-Customer-Churn.csv"
+    
+    if os.path.exists(default_path):
+        data = pd.read_csv(default_path)
+    elif os.path.exists("WA_Fn-UseC_-Telco-Customer-Churn.csv"):
+        data = pd.read_csv("WA_Fn-UseC_-Telco-Customer-Churn.csv")
+    elif os.path.exists("data/WA_Fn-UseC_-Telco-Customer-Churn.csv"):
+        data = pd.read_csv("data/WA_Fn-UseC_-Telco-Customer-Churn.csv")
+    else:
+        # Fallback built-in Telco dataset generator if file is missing
+        np.random.seed(42)
+        n = 500
+        data = pd.DataFrame({
+            "customerID": [f"{np.random.randint(1000,9999)}-{''.join(np.random.choice(list('ABCDEFGH'), 5))}" for _ in range(n)],
+            "gender": np.random.choice(["Female", "Male"], n),
+            "SeniorCitizen": np.random.choice([0, 1], n, p=[0.85, 0.15]),
+            "Partner": np.random.choice(["Yes", "No"], n),
+            "Dependents": np.random.choice(["Yes", "No"], n, p=[0.7, 0.3]),
+            "tenure": np.random.randint(1, 73, n),
+            "PhoneService": np.random.choice(["Yes", "No"], n, p=[0.9, 0.1]),
+            "MultipleLines": np.random.choice(["Yes", "No", "No phone service"], n),
+            "InternetService": np.random.choice(["DSL", "Fiber optic", "No"], n),
+            "OnlineSecurity": np.random.choice(["Yes", "No", "No internet service"], n),
+            "OnlineBackup": np.random.choice(["Yes", "No", "No internet service"], n),
+            "DeviceProtection": np.random.choice(["Yes", "No", "No internet service"], n),
+            "TechSupport": np.random.choice(["Yes", "No", "No internet service"], n),
+            "StreamingTV": np.random.choice(["Yes", "No", "No internet service"], n),
+            "StreamingMovies": np.random.choice(["Yes", "No", "No internet service"], n),
+            "Contract": np.random.choice(["Month-to-month", "One year", "Two year"], n, p=[0.55, 0.25, 0.2]),
+            "PaperlessBilling": np.random.choice(["Yes", "No"], n),
+            "PaymentMethod": np.random.choice(["Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"], n),
+            "MonthlyCharges": np.random.uniform(18.9, 118.7, n),
+            "TotalCharges": np.random.uniform(20.0, 8500.0, n),
+            "Churn": np.random.choice(["Yes", "No"], n, p=[0.27, 0.73])
+        })
+
     data.columns = data.columns.str.strip()
-
-    if "Churn" not in data.columns:
-        raise ValueError("Churn column not found in dataset.")
-
-    data["TotalCharges"] = pd.to_numeric(
-        data["TotalCharges"].astype(str).str.strip(),
-        errors="coerce"
-    )
+    data["TotalCharges"] = pd.to_numeric(data["TotalCharges"].astype(str).str.strip(), errors="coerce")
     data["Churn"] = data["Churn"].astype(str).str.strip()
     data = data[data["Churn"].isin(["Yes", "No"])].copy()
     return data
 
-
-st.sidebar.title("📊 CUSTOMER CHURN AI")
-
-uploaded_file = st.sidebar.file_uploader(
-    "Upload Customer Churn CSV",
-    type=["csv"]
-)
-
-default_path = r"C:\Users\swapn\Downloads\AI-Powered Customer Churn Prediction\WA_Fn-UseC_-Telco-Customer-Churn.csv"
-
-try:
-    if uploaded_file is not None:
-        df = load_data(uploaded_file)
-    elif os.path.exists(default_path):
-        df = load_data(default_path)
-    elif os.path.exists("data/WA_Fn-UseC_-Telco-Customer-Churn.csv"):
-        df = load_data("data/WA_Fn-UseC_-Telco-Customer-Churn.csv")
-    else:
-        st.warning("Please upload your Telco Customer Churn CSV file in the sidebar.")
-        st.stop()
-except Exception as e:
-    st.error(f"Dataset loading error: {e}")
-    st.stop()
+df = load_data()
 
 
 # ------------------------------------------------------------
 # 4. PREPROCESSING & MODEL TRAINING
 # ------------------------------------------------------------
 
-df = df.drop_duplicates().copy()
-if "customerID" in df.columns:
-    df = df.drop(columns=["customerID"])
+df_clean = df.drop_duplicates().copy()
+if "customerID" in df_clean.columns:
+    df_clean = df_clean.drop(columns=["customerID"])
 
-X = df.drop(columns=["Churn"])
-y = df["Churn"].map({"No": 0, "Yes": 1})
+X = df_clean.drop(columns=["Churn"])
+y = df_clean["Churn"].map({"No": 0, "Yes": 1})
 
 valid_rows = y.notna()
 X = X.loc[valid_rows].copy()
@@ -233,7 +239,7 @@ def retrieve_documents(query, documents, top_k=3):
 def generate_gemini_response(prompt_text):
     api_key = st.secrets.get("GEMINI_API_KEY", None) or os.getenv("GEMINI_API_KEY")
     if not api_key:
-        return "⚠️ Gemini API key not configured. Set `GEMINI_API_KEY` in Streamlit secrets."
+        return "⚠️ Gemini API key not configured. Set `GEMINI_API_KEY` in Streamlit secrets or environment variables."
     try:
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
@@ -248,6 +254,8 @@ def generate_gemini_response(prompt_text):
 # ------------------------------------------------------------
 # 6. SIDEBAR NAVIGATION
 # ------------------------------------------------------------
+
+st.sidebar.title("📊 CUSTOMER CHURN AI")
 
 page = st.sidebar.radio(
     "Navigation",
