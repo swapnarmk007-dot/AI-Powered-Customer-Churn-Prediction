@@ -1,4 +1,4 @@
-## ============================================================
+# ============================================================
 # CUSTOMER CHURN AI - ADVANCED ENTERPRISE SUITE
 # Machine Learning + Streamlit + RAG + Gemini AI + Explainability
 # Developed by Swapna V
@@ -82,7 +82,7 @@ def load_data(file):
     return data
 
 
-st.sidebar.header("📂 Dataset & Configuration")
+st.sidebar.title("📊 CUSTOMER CHURN AI")
 
 uploaded_file = st.sidebar.file_uploader(
     "Upload Customer Churn CSV",
@@ -248,8 +248,6 @@ def generate_gemini_response(prompt_text):
 # ------------------------------------------------------------
 # 6. SIDEBAR NAVIGATION
 # ------------------------------------------------------------
-
-st.sidebar.title("📊 CUSTOMER CHURN AI")
 
 page = st.sidebar.radio(
     "Navigation",
