@@ -211,6 +211,5 @@ This project demonstrates the application of machine learning, document retrieva
 ## 🚀 Live Demo
 
 **Live Application:** [https://ai-powered-customer-churn-prediction-hue7ctp3dgwaealbz49678.streamlit.app/](https://ai-powered-customer-churn-prediction-hue7ctp3dgwaealbz49678.streamlit.app/)
-   **[live demo](https://ai-powered-customer-churn-prediction-hue7ctp3dgwaealbz49678.streamlit.app/)
-
+   
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ai-powered-customer-churn-pue7ctp3dgwaealbz49678.streamlit.app/)
